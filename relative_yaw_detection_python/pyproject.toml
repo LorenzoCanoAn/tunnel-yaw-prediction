@@ -1,0 +1,27 @@
+[build-system]
+build-backend = "hatchling.build"
+requires = ["hatchling"]
+[project]
+authors = [
+  {name = "Lorenzo Cano", email = "lcano@unizar.es"},
+]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+dependencies = [
+  "numpy",
+  "matplotlib"
+]
+description = "Package to genearate meshes that look like underground environments"
+name = "DeepYawDetection"
+readme = "README.md"
+requires-python = ">=3.6"
+version = "0.0.1"
+[project.urls]
+"Bug Tracker" = "https://github.com/LorenzoCanoAn/relative-yaw-detection/issues"
+"Homepage" = "https://github.com/LorenzoCanoAn/relative-yaw-detection/gallery-detection"
+[tool.hatch.build.targets.wheel]
+packages = ["src/yaw_estimation"]
+

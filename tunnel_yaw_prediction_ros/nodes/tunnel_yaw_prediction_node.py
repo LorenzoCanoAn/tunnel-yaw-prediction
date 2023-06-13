@@ -11,21 +11,36 @@ import argparse
 
 
 def get_args():
-    parser = argparse.ArgumentParser("yaw_estimation_node")
+    parser = argparse.ArgumentParser("tunnel_yaw_prediction_node")
     parser.add_argument("--path_to_model", required=True, type=str)
     parser.add_argument(
-        "--input_topic", required=False, type=str, default="/cenital_image"
+        "--input_topic",
+        type=str,
+        default="/cenital_image",
+        const="/cenital_image",
+        nargs="?",
     )
     parser.add_argument(
-        "--output_topic", required=False, type=str, default="~estimated_yaw"
+        "--output_topic",
+        type=str,
+        default="~estimated_yaw",
+        const="~estimated_yaw",
+        nargs="?",
     )
     parser.add_argument(
         "--model_module",
-        required=False,
         type=str,
         default="tunnel_yaw_prediction.models",
+        const="tunnel_yaw_prediction.models",
+        nargs="?",
     )
-    parser.add_argument("--model_type", required=False, type=str, default=None)
+    parser.add_argument(
+        "--model_type",
+        type=str,
+        default=None,
+        const=None,
+        nargs="?",
+    )
     args = parser.parse_args()
     return args
 

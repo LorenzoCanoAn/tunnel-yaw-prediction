@@ -1,0 +1,10 @@
+<launch>
+    <arg name="path_to_model" default="" />
+    <arg name="intput_topic" default="" />
+    <arg name="" default="" />
+    <arg name="" default="" />
+    <node pkg="tunnel_yaw_prediction_ros" type="tunnel_yaw_prediction_node"
+        name="tunnel_yaw_prediction_node" output="screen"
+        args="--path_to_model --input_topic --output_topic --model_module --model_type" />
+
+</launch>

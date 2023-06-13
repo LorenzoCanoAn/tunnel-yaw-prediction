@@ -1,4 +1,4 @@
-#!/bin/python3
+#!/home/lorenzo/miniconda3/envs/train_nn/bin/python3
 import pathlib
 import torch
 from cv_bridge import CvBridge
@@ -7,39 +7,56 @@ import std_msgs.msg as std_msg
 import rospy
 import importlib
 import numpy as np
+import argparse
+
+
+def get_args():
+    parser = argparse.ArgumentParser("yaw_estimation_node")
+    parser.add_argument("--path_to_model", required=True, type=str)
+    parser.add_argument(
+        "--input_topic", required=False, type=str, default="/cenital_image"
+    )
+    parser.add_argument(
+        "--output_topic", required=False, type=str, default="~estimated_yaw"
+    )
+    parser.add_argument(
+        "--model_module", required=False, type=str, default="yaw_estimation.models"
+    )
+    parser.add_argument("--model_type", required=False, type=str, default=None)
+    args = parser.parse_args()
+    return args
+
+
+def load_model(model_path, module, model_type):
+    file_name = pathlib.Path(model_path).name
+    if model_type == None:
+        model_type = file_name.split("-")[0]
+    module = importlib.import_module(module)
+    model = getattr(module, model_type)()
+    model.load_state_dict(torch.load(model_path, map_location=torch.device("cpu")))
+    model.eval()
+    return model
 
 
 class NetworkNode:
-    def __init__(self):
+    def __init__(self, model, input_topic, output_topic):
+        self.model = model
+        self.input_topic = input_topic
+        self.output_topic = output_topic
         rospy.init_node(
             "gallery_network",
         )
         self.init_network()
         self._cv_bridge = CvBridge()
         self.image_subscriber = rospy.Subscriber(
-            "/cenital_image",
+            input_topic,
             sensor_msg.Image,
             self.image_callback,
             queue_size=1,
         )
         self.detection_publisher = rospy.Publisher(
-            "/estimated_relative_yaw", std_msg.Float32, queue_size=1
+            output_topic, std_msg.Float32, queue_size=1
         )
-
-    def init_network(self):
-        file_path = rospy.get_param(
-            "~nn_path",
-            default="/home/lorenzo/models/yaw_estimation/YawEstimator-_bs128_ne128_lr0_001346.torch",
-        )
-        print(file_path)
-        file_name = pathlib.Path(file_path).name
-        nn_type = file_name.split("-")[0]
-        module = importlib.import_module("yaw_estimation.models")
-        self.model = getattr(module, nn_type)()
-        self.model.load_state_dict(
-            torch.load(file_path, map_location=torch.device("cpu"))
-        )
-        self.model.eval()
 
     def image_callback(self, msg: sensor_msg.Image):
         depth_image = np.reshape(

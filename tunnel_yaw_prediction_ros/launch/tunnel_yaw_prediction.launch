@@ -1,6 +1,8 @@
 <launch>
-    <arg name="model_name" default="TunnelYawPredictor-_bs128_ne128_lr0_000875.torch" />
-    <arg name="model_folder" default="$(env HOME)/models/yaw_estimation" />
+    <arg name="model_name"
+        default="TunnelYawPredictor-_bs128_ne128_lr0_002.torch" />
+    <arg name="model_folder"
+        default="$(env HOME)/models/yaw_estimation/fast_tunnel_traversal/2023-06-30_11:27:44" />
     <arg name="path_to_model" default="$(arg model_folder)/$(arg model_name)" />
     <arg name="input_topic" default="" />
     <arg name="output_topic" default="" />

@@ -80,7 +80,7 @@ class NetworkNode:
             queue_size=1,
         )
         self.predicted_yaw_rad_publisher = rospy.Publisher(
-            output_topic + "_rad", std_msg.Float32, queue_size=1
+            output_topic, std_msg.Float32, queue_size=1
         )
         if publish_also_in_deg:
             self.predicted_yaw_deg_publisher = rospy.Publisher(

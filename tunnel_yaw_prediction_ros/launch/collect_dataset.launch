@@ -1,0 +1,28 @@
+<launch>
+    <arg name="dataset_folder" />
+    <arg name="number_of_samples_per_env" default="10000" />
+    <arg name="label_range_deg" default="45" />
+    <arg name="max_horizontal_displacement" default="2" />
+    <arg name="max_vertical_displacement" default="0.1" />
+    <arg name="min_vertical_displacement" default="-0.1" />
+    <arg name="max_inclination_deg" default="10" />
+    <arg name="robot_name" default="/" />
+    <arg name="data_topic" default="/cenital_image" />
+    <node
+        pkg="tunnel_yaw_prediction_ros"
+        type="yaw_prediction_dataset_collection_node.py"
+        name="dataset_collector"
+        output="screen"
+        clear_params="true"
+    >
+        <param name="dataset_folder" value="$(arg dataset_folder)" />
+        <param name="number_of_samples_per_env" value="$(arg number_of_samples_per_env)" />
+        <param name="label_range_deg" value="$(arg label_range_deg)" />
+        <param name="max_horizontal_displacement" value="$(arg max_horizontal_displacement)" />
+        <param name="max_vertical_displacement" value="$(arg max_vertical_displacement)" />
+        <param name="min_vertical_displacement" value="$(arg min_vertical_displacement)" />
+        <param name="max_inclination_deg" value="$(arg max_inclination_deg)" />
+        <param name="robot_name" value="$(arg robot_name)" />
+        <param name="data_topic" value="$(arg data_topic)" />
+    </node>
+</launch>

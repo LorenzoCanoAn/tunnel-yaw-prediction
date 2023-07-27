@@ -1,0 +1,15 @@
+<launch>
+    <arg name="model_folder" default="$(env HOME)/models/yaw_estimation" />
+    <arg name="model_name" default="10_meter_window" />
+    <arg name="input_topic" default="/cenital_image" />
+    <arg name="output_topic" default="~estimated_yaw" />
+    <arg name="publish_also_in_deg" default="true" />
+    <node pkg="tunnel_yaw_prediction_ros" type="tunnel_yaw_prediction_node.py"
+        name="tunnel_yaw_prediction_node" output="screen">
+        <param name="model_folder" value="$(arg model_folder)" />
+        <param name="model_name" value="$(arg model_name)" />
+        <param name="input_topic" value="$(arg input_topic)" />
+        <param name="output_topic" value="$(arg output_topic)" />
+        <param name="publish_also_in_deg" value="$(arg publish_also_in_deg)" />
+    </node>
+</launch>

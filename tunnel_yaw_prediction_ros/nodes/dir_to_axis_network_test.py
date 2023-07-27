@@ -70,6 +70,56 @@ def T_to_xyzrpy(transform):
     return x, y, z, roll, pitch, yaw
 
 
+def robot_pose_from_axis_and_displacement(
+    ap, av, h_disp, v_disp, rel_roll, rel_pitch, rel_yaw
+):
+    """Given an axis point and its corresponding direction, as well as
+    the robot's relative horizontal displacement and orientation,
+    an array of xyzrpy of the robot in global coordinates"""
+    apx, apy, apz = np.reshape(ap, -1)
+    avx, avy, avz = np.reshape(av, -1)
+    a_roll = 0
+    a_pitch = -np.arctan2(avz, np.sqrt(avx**2 + avy**2))
+    a_yaw = np.arctan2(avy, avx)
+    axis_T = xyzrpy_to_T(apx, apy, apz, a_roll, a_pitch, a_yaw)
+    # Create T matrix from displacements
+    x_rel = 0
+    y_rel = h_disp
+    z_rel = v_disp
+    rel_pitch = 0
+    rel_T = xyzrpy_to_T(x_rel, y_rel, z_rel, rel_roll, rel_pitch, rel_yaw)
+    # Obtain the final from the two transformation matrices
+    final_T = np.matmul(axis_T, rel_T)
+    return np.array(T_to_xyzrpy(final_T))
+
+
+def label_from_pose_and_aps(
+    robot_xyzrpy: np.ndarray, aps: np.ndarray, detection_radius
+):
+    robot_xyzrpy = np.reshape(robot_xyzrpy, -1)
+    x, y, z, roll, pitch, yaw = robot_xyzrpy
+    robot_T = xyzrpy_to_T(x, y, z, roll, pitch, yaw)
+    inv_robot_T = np.linalg.inv(robot_T)
+    robot_xyz = np.reshape(np.array((x, y, z)), (1, 3))
+    d_of_aps_to_circle = np.abs(
+        np.linalg.norm(aps - robot_xyz, axis=1) - detection_radius
+    )
+    # Iterate until an aps close to the circle is in the adequate direction
+    while True:
+        idx_of_candidate = np.argmin(d_of_aps_to_circle)
+        candidate_aps = np.reshape(aps[idx_of_candidate, :], (1, 3))
+        candidate_aps_unitary = np.hstack([candidate_aps, np.ones((1, 1))]).T
+        # Project the candidate aps into the robots reference frame
+        apx, apy, apz = np.matmul(inv_robot_T, candidate_aps_unitary)[0:3, 0]
+        yaw_of_ap_in_robot_frame = np.arctan2(apy, apx)
+        # If the aps is in front of the robot, that is the label, else, try with the next one
+        if np.abs(yaw_of_ap_in_robot_frame) < np.pi / 2:
+            return yaw_of_ap_in_robot_frame
+        else:
+            d_of_aps_to_circle = np.delete(d_of_aps_to_circle, idx_of_candidate, axis=0)
+            aps = np.delete(aps, idx_of_candidate, axis=0)
+
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--folder", required=True, type=str)
@@ -189,27 +239,17 @@ class YawPredictionTestingNode:
         testing_poses = np.zeros((n_aps, 6))
         yaws_rel = np.zeros((n_aps, 1))
         h_disps = np.zeros((n_aps, 1))
-        for n, (ap, av) in enumerate(zip(self.aps, self.avs)):
-            apx, apy, apz = np.reshape(ap, -1)
-            avx, avy, avz = np.reshape(av, -1)
-            a_roll = 0
-            a_pitch = -np.arctan2(avz, np.sqrt(avx**2 + avy**2))
-            a_yaw = np.arctan2(avy, avx)
-            axis_T = xyzrpy_to_T(apx, apy, apz, a_roll, a_pitch, a_yaw)
-            dist = n * self.intra_point_dist  # Dist from start of tunnel
+        for n, (ap, av) in enumerate(zip(self.aps[:-10, :], self.avs[:-10, :])):
+            # Dist from start of tunnel
+            dist = n * self.intra_point_dist
             # Get displacements
             h_disp = self.h_disp(dist)
             yaw_rel = self.rel_yaw(dist)
-            # Create T matrix from displacements
-            x_rel = 0
-            y_rel = h_disp
-            z_rel = self.fta_dist
-            roll_rel = 0
-            pitch_rel = 0
-            rel_T = xyzrpy_to_T(x_rel, y_rel, z_rel, roll_rel, pitch_rel, yaw_rel)
-            # Obtain the final from the two transformation matrices
-            final_T = np.matmul(axis_T, rel_T)
-            testing_poses[n, :] = np.array(T_to_xyzrpy(final_T))
+            # Calculate T from origin to ap
+            robot_pose = robot_pose_from_axis_and_displacement(
+                ap, av, h_disp, self.fta_dist, 0, 0, yaw_rel
+            )
+            testing_poses[n, :] = robot_pose
             yaws_rel[n, :] = yaw_rel
             h_disps[n, :] = h_disp
         testing_poses = np.hstack([testing_poses, yaws_rel, h_disps])
@@ -231,8 +271,16 @@ class YawPredictionTestingNode:
     def run(self):
         self.change_environment(os.path.join(self.environment_folder, "model.sdf"))
         testing_poses = self.generate_testing_poses()
+        correct_predictions = []
         testing_data = []
         for x, y, z, roll, pitch, yaw, _, _ in testing_poses:
+            correct_predictions.append(
+                [
+                    label_from_pose_and_aps(
+                        np.array([x, y, z, roll, pitch, yaw]), self.aps, 5
+                    )
+                ]
+            )
             qx, qy, qz, qw = get_quaternion_from_euler(roll, pitch, yaw)
             position = geometry_msg.Point(x, y, z)
             orientation = geometry_msg.Quaternion(qx, qy, qz, qw)
@@ -246,10 +294,17 @@ class YawPredictionTestingNode:
                 self.yaw_storage.block()
                 predicted_yaws.append(self.yaw_storage.data)
             testing_data.append(predicted_yaws)
-        return testing_poses, np.array(testing_data)
+        return testing_poses, np.array(testing_data), np.array(correct_predictions)
 
-    def save_data(self, tests_data_folder, test_number, testing_poses, predicted_yaws):
-        general_array = np.hstack([testing_poses, predicted_yaws])
+    def save_data(
+        self,
+        tests_data_folder,
+        test_number,
+        testing_poses,
+        predicted_yaws,
+        correct_predictions,
+    ):
+        general_array = np.hstack([testing_poses, predicted_yaws, correct_predictions])
         info = {
             "n_measurements": self.n_measurements,
             "rel_yaw_amplitude_deg": int(np.round(np.rad2deg(self.rel_yaw_amplitude))),
@@ -332,9 +387,17 @@ def main():
                 h_disp_amplitude,
                 h_disp_period,
             )
-            test_poses, test_data = yaw_prediction_testing_node.run()
+            (
+                test_poses,
+                test_data,
+                correct_predictions,
+            ) = yaw_prediction_testing_node.run()
             yaw_prediction_testing_node.save_data(
-                test_results_folder, test_number, test_poses, test_data
+                test_results_folder,
+                test_number,
+                test_poses,
+                test_data,
+                correct_predictions,
             )
 
 

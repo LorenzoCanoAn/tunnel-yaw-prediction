@@ -7,52 +7,11 @@ import std_msgs.msg as std_msg
 import rospy
 import importlib
 import numpy as np
-import argparse
+import os
+import json
 
 
-def get_args():
-    parser = argparse.ArgumentParser("tunnel_yaw_prediction_node")
-    parser.add_argument("--path_to_model", required=True, type=str)
-    parser.add_argument(
-        "--input_topic",
-        type=str,
-        default="/cenital_image",
-        const="/cenital_image",
-        nargs="?",
-    )
-    parser.add_argument(
-        "--output_topic",
-        type=str,
-        default="~estimated_yaw",
-        const="~estimated_yaw",
-        nargs="?",
-    )
-    parser.add_argument(
-        "--model_module",
-        type=str,
-        default="tunnel_yaw_prediction.models",
-        const="tunnel_yaw_prediction.models",
-        nargs="?",
-    )
-    parser.add_argument(
-        "--model_type",
-        type=str,
-        default=None,
-        const=None,
-        nargs="?",
-    )
-    parser.add_argument(
-        "--publish_also_in_deg",
-        type=int,
-        default=1,
-        const=1,
-        nargs="?",
-    )
-    args, trash = parser.parse_known_args()
-    return args
-
-
-def load_model(model_path, module, model_type):
+def load_model_by_string(model_path, module, model_type):
     file_name = pathlib.Path(model_path).name
     if model_type == None:
         model_type = file_name.split("-")[0]
@@ -64,27 +23,87 @@ def load_model(model_path, module, model_type):
 
 
 class NetworkNode:
-    def __init__(self, model, input_topic, output_topic, publish_also_in_deg):
-        self.model = model
-        self.input_topic = input_topic
-        self.output_topic = output_topic
-        self.publish_also_in_deg = publish_also_in_deg
+    def __init__(self):
         rospy.init_node(
             "tunnel_yaw_prediction_node",
         )
         self._cv_bridge = CvBridge()
+        self.setup_params()
+        self.setup_model()
+        self.setup_sub_and_pub()
+
+    def find_matching_param_key(self, desired_param_key):
+        all_param_keys = rospy.get_param_names()
+        matching_params = []
+        for param_key in all_param_keys:
+            if desired_param_key in param_key:
+                matching_params.append(param_key)
+        if len(matching_params) == 1:
+            return matching_params[0]
+        elif len(matching_params) == 0:
+            raise Exception(
+                f"Sub-param name '{desired_param_key}' does not match any params in server"
+            )
+        else:
+            raise Exception(
+                f"Sub-param name '{desired_param_key}' matches more than one params in server"
+            )
+
+    def get_param_from_pram_sub_key(self, param_sub_key):
+        return rospy.get_param(self.find_matching_param_key(param_sub_key))
+
+    def setup_params(self):
+        model_folder = rospy.get_param("~model_folder")
+        model_name = rospy.get_param("~model_name")
+        self.input_topic = rospy.get_param("~input_topic", default="/cenital_image")
+        self.output_topic = rospy.get_param("~output_topic", default="~estimated_yaw")
+        self.publish_also_in_deg = rospy.get_param("~publish_also_in_deg", default=True)
+        self.path_to_model = os.path.join(model_folder, model_name + ".torch")
+        self.path_to_model_info = os.path.join(model_folder, model_name + ".json")
+
+    def setup_model(self):
+        rospy.loginfo(f"loading {self.path_to_model}")
+        with open(self.path_to_model_info, "r") as f:
+            self.model_info = json.load(f)
+        self.model = load_model_by_string(
+            self.path_to_model,
+            self.model_info["module_to_import_network"],
+            self.model_info["network_class_name"],
+        )
+        training_img_size = self.model_info["dataset_paramters"]["conversor/img_size"]
+        training_max_coord_val = self.model_info["dataset_paramters"][
+            "conversor/max_coord_val"
+        ]
+        recieved_img_size = self.get_param_from_pram_sub_key("conversor/img_size")
+        recieved_max_coord_val = self.get_param_from_pram_sub_key(
+            "conversor/max_coord_val"
+        )
+        if training_img_size == recieved_img_size:
+            self.img_size = training_img_size
+        else:
+            raise Exception(
+                f"The recieved img size is {recieved_img_size}, but the training img_size is {training_img_size}"
+            )
+        if training_max_coord_val == recieved_max_coord_val:
+            self.max_coord_val = training_max_coord_val
+        else:
+            raise Exception(
+                f"The recieved max_coord_val {recieved_max_coord_val}, but the training max_coord_val is {training_max_coord_val}"
+            )
+
+    def setup_sub_and_pub(self):
         self.image_subscriber = rospy.Subscriber(
-            input_topic,
+            self.input_topic,
             sensor_msg.Image,
             self.image_callback,
             queue_size=1,
         )
         self.predicted_yaw_rad_publisher = rospy.Publisher(
-            output_topic, std_msg.Float32, queue_size=1
+            self.output_topic, std_msg.Float32, queue_size=1
         )
-        if publish_also_in_deg:
+        if self.publish_also_in_deg:
             self.predicted_yaw_deg_publisher = rospy.Publisher(
-                output_topic + "_deg", std_msg.Float32, queue_size=1
+                self.output_topic + "_deg", std_msg.Float32, queue_size=1
             )
 
     def image_callback(self, msg: sensor_msg.Image):
@@ -93,7 +112,9 @@ class NetworkNode:
         )
         depth_image_tensor = torch.tensor(depth_image).float().to(torch.device("cpu"))
         depth_image_tensor /= torch.max(depth_image_tensor)
-        depth_image_tensor = torch.reshape(depth_image_tensor, [1, 1, 30, -1])
+        depth_image_tensor = torch.reshape(
+            depth_image_tensor, [1, 1, self.img_size, self.img_size]
+        )
         data = self.model(depth_image_tensor)
         data = data.cpu().detach().numpy()
         yaw = data.item(0)
@@ -109,15 +130,7 @@ class NetworkNode:
 
 
 def main():
-    args = get_args()
-    path_to_model = args.path_to_model
-    input_topic = args.input_topic
-    output_topic = args.output_topic
-    model_module = args.model_module
-    model_type = args.model_type
-    publish_also_in_deg = bool(args.publish_also_in_deg)
-    model = load_model(path_to_model, model_module, model_type)
-    network_node = NetworkNode(model, input_topic, output_topic, publish_also_in_deg)
+    network_node = NetworkNode()
     network_node.run()
 
 

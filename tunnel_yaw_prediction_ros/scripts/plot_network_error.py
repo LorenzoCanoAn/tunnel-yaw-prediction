@@ -107,6 +107,7 @@ def main():
         h_disps = test_data[:, 7]
         vs = rpy_to_vector(rpys)
         measured_yaws = test_data[:, 8 : (8 + n_measurements)]
+        labels = test_data[:, (8 + n_measurements)]
         assert len(aps) == len(avs) == len(ps) == len(rpys) == len(measured_yaws)
         # Plot the axis and path followed
         if plot_axis_and_path:
@@ -130,9 +131,9 @@ def main():
             ds,
             np.rad2deg(mean_measured_yaws),
             color="b",
-            label="Predicted relative yaw",
+            label="Predicted yaw to axis",
         )
-        plt.plot(ds, np.rad2deg(rel_yaws), color="r", label="Relative yaw ground truth")
+        plt.plot(ds, np.rad2deg(labels), color="r", label="Yaw to axis ground truth")
         plt.plot(ds, h_disps, color="g", label="Relative horizontal displacement")
         plt.fill_between(
             ds,

@@ -1,0 +1,36 @@
+<launch>
+    <arg name="data_folder" />
+    <arg name="number_of_samples_per_env" default="10000" />
+    <arg name="max_rel_yaw_deg" default="45" />
+    <arg name="label_distance" default="5" />
+    <arg name="max_horizontal_displacement" default="1.8" />
+    <arg name="max_vertical_displacement" default="0.1" />
+    <arg name="min_vertical_displacement" default="-0.1" />
+    <arg name="max_inclination_deg" default="10" />
+    <arg name="robot_name" default="/" />
+    <arg name="image_topic" default="/cenital_image" />
+    <arg name="max_coord_val" default="10" />
+    <arg name="img_size" default="100" />
+    <include file="$(find pointcloud_to_image)/launch/scan_to_bev_img.launch">
+        <arg name="max_coord_val" value="$(arg max_coord_val)" />
+        <arg name="img_size" value="$(arg img_size)" />
+    </include>
+    <node
+        pkg="tunnel_yaw_prediction_ros"
+        type="dir_to_axis_datset_collection.py"
+        name="dataset_collector"
+        output="screen"
+        clear_params="true"
+    >
+        <param name="data_folder" value="$(arg data_folder)" />
+        <param name="number_of_samples_per_env" value="$(arg number_of_samples_per_env)" />
+        <param name="max_rel_yaw_deg" value="$(arg max_rel_yaw_deg)" />
+        <param name="label_distance" value="$(arg label_distance)" />
+        <param name="max_horizontal_displacement" value="$(arg max_horizontal_displacement)" />
+        <param name="min_vertical_displacement" value="$(arg min_vertical_displacement)" />
+        <param name="max_vertical_displacement" value="$(arg max_vertical_displacement)" />
+        <param name="max_inclination_deg" value="$(arg max_inclination_deg)" />
+        <param name="robot_name" value="$(arg robot_name)" />
+        <param name="image_topic" value="$(arg image_topic)" />
+    </node>
+</launch>

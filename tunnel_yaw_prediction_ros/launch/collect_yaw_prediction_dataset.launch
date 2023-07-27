@@ -1,5 +1,5 @@
 <launch>
-    <arg name="dataset_folder" />
+    <arg name="data_folder" />
     <arg name="number_of_samples_per_env" default="10000" />
     <arg name="label_range_deg" default="45" />
     <arg name="max_horizontal_displacement" default="2" />
@@ -8,6 +8,12 @@
     <arg name="max_inclination_deg" default="10" />
     <arg name="robot_name" default="/" />
     <arg name="data_topic" default="/cenital_image" />
+    <arg name="max_coord_val" default="10" />
+    <arg name="img_size" default="100" />
+    <include file="$(find pointcloud_to_image)/launch/scan_to_bev_img.launch">
+        <arg name="max_coord_val" value="$(arg max_coord_val)" />
+        <arg name="img_size" value="$(arg img_size)" />
+    </include>
     <node
         pkg="tunnel_yaw_prediction_ros"
         type="yaw_prediction_dataset_collection_node.py"
@@ -15,7 +21,7 @@
         output="screen"
         clear_params="true"
     >
-        <param name="dataset_folder" value="$(arg dataset_folder)" />
+        <param name="data_folder" value="$(arg data_folder)" />
         <param name="number_of_samples_per_env" value="$(arg number_of_samples_per_env)" />
         <param name="label_range_deg" value="$(arg label_range_deg)" />
         <param name="max_horizontal_displacement" value="$(arg max_horizontal_displacement)" />
